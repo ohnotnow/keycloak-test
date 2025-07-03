@@ -39,7 +39,6 @@ class SSOController extends Controller
 
     public function handleProviderCallback()
     {
-        try {
             $ssoUser = Socialite::driver('keycloak')->user();
 
             dump($ssoUser);
@@ -77,10 +76,6 @@ class SSOController extends Controller
             return "Hello";
             return redirect('/home');
 
-        } catch (\Exception $e) {
-            dump($e);
-            abort(500, 'SSO authentication failed');
-        }
     }
 
     private function extractSurname($ssoUser)
