@@ -82,7 +82,6 @@ class SSOController extends Controller
             }
 
             auth()->login($user, true);
-            return "Hello";
             return redirect('/home');
 
     }
