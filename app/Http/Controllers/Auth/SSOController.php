@@ -42,43 +42,15 @@ class SSOController extends Controller
     {
             $ssoUser = Socialite::driver('keycloak')->user();
 
-            // dump($ssoUser);
-
             if (!config('sso.allow_students', true) && $this->isStudent($ssoUser)) {
                 abort(403, 'Students are not allowed to login');
             }
 
-            $ssoDetails = [
-                'email' => strtolower($ssoUser->email),
-                'username' => strtolower($ssoUser->nickname),
-                'surname' => $ssoUser->user['family_name'],
-                'forenames' => $ssoUser->user['given_name'],
-                'is_staff' => $this->isStaff($ssoUser),
-            ];
+            $ssoDetails = $this->getSSODetails($ssoUser);
 
-            // dump($ssoDetails);
-
-
-            if (config('sso.autocreate_new_users', false)) {
-                $user = User::updateOrCreate(
-                    ['email' => $ssoDetails['email']],
-                    [
-                        'password' => bcrypt(Str::random(64)),
-                        'username' => $ssoDetails['username'],
-                        'email' => $ssoDetails['email'],
-                        'surname' => $ssoDetails['surname'],
-                        'forenames' => $ssoDetails['forenames'],
-                        'is_staff' => $this->isStaff($ssoUser),
-                    ]
-                );
-            } else {
-                $user = User::where('email', '=', $ssoDetails['email'])->firstOrFail();
-            }
+            $user = $this->getUser($ssoDetails);
 
             if (config('sso.admins_only', false) && !$user->is_admin) {
-                if ($user->wasRecentlyCreated) {
-                    $user->delete();
-                }
                 abort(403, 'Only admins can login');
             }
 
@@ -87,55 +59,47 @@ class SSOController extends Controller
 
     }
 
-    private function extractSurname($ssoUser)
+    private function getSSODetails(\Laravel\Socialite\Contracts\User $ssoUser): array
     {
-        return $ssoUser->user['family_name'] ??
-               $ssoUser->user['surname'] ??
-               $this->parseFromName($ssoUser->getName(), 'surname');
+        return [
+            'email' => strtolower($ssoUser->email),
+            'username' => strtolower($ssoUser->nickname),
+            'surname' => $ssoUser->user['family_name'],
+            'forenames' => $ssoUser->user['given_name'],
+            'is_staff' => $this->isStaff($ssoUser),
+        ];
     }
 
-    private function extractForenames($ssoUser)
+    private function getUser(array $ssoDetails): User
     {
-        return $ssoUser->user['given_name'] ??
-               $ssoUser->user['forenames'] ??
-               $this->parseFromName($ssoUser->getName(), 'forenames');
-    }
-
-    private function isStudent($ssoUser)
-    {
-        $username = $ssoUser->getNickname() ?? $ssoUser->getName();
-
-        return $this->looksLikeMatric($username);
-    }
-
-    private function isStaff($ssoUser)
-    {
-        $username = $ssoUser->getNickname() ?? $ssoUser->getName();
-
-        return !$this->looksLikeMatric($username);
-    }
-
-    private function looksLikeMatric($username)
-    {
-        return preg_match('/^[0-9]+[a-z]?$/', $username);
-    }
-
-    private function parseFromName($fullName, $part)
-    {
-        if (empty($fullName)) {
-            return null;
+        if (config('sso.autocreate_new_users', false)) {
+            return User::updateOrCreate(
+                ['email' => $ssoDetails['email']],
+                [
+                    'password' => bcrypt(Str::random(64)),
+                    'username' => $ssoDetails['username'],
+                    'email' => $ssoDetails['email'],
+                    'surname' => $ssoDetails['surname'],
+                    'forenames' => $ssoDetails['forenames'],
+                    'is_staff' => $ssoDetails['is_staff'],
+                ]
+            );
         }
+        return User::where('email', '=', $ssoDetails['email'])->firstOrFail();
+    }
 
-        $nameParts = explode(' ', trim($fullName));
+    private function isStudent(\Laravel\Socialite\Contracts\User $ssoUser): bool
+    {
+        return $this->looksLikeMatric($ssoUser->nickname);
+    }
 
-        if ($part === 'forenames') {
-            // Everything except the last part
-            return count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 0, -1)) : $fullName;
-        } elseif ($part === 'surname') {
-            // The last part
-            return count($nameParts) > 1 ? end($nameParts) : null;
-        }
+    private function isStaff(\Laravel\Socialite\Contracts\User $ssoUser): bool
+    {
+        return !$this->looksLikeMatric($ssoUser->nickname);
+    }
 
-        return null;
+    private function looksLikeMatric(string $username): bool
+    {
+        return preg_match('/^[0-9]+[a-z]?$/', $username) === 1;
     }
 }
