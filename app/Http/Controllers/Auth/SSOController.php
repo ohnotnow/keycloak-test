@@ -78,6 +78,7 @@ class SSOController extends Controller
             return redirect('/home');
 
         } catch (\Exception $e) {
+            dump($e);
             abort(500, 'SSO authentication failed');
         }
     }
