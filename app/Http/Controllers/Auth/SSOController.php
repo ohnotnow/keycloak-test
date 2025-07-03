@@ -19,6 +19,13 @@ class SSOController extends Controller
         try {
             $ssoUser = Socialite::driver('keycloak')->user();
 
+            info('SSO User Data', [
+                'user' => $ssoUser->user,
+                'name' => $ssoUser->getName(),
+                'email' => $ssoUser->getEmail(),
+                'nickname' => $ssoUser->getNickname(),
+            ]);
+
             $user = User::updateOrCreate(
                 ['email' => strtolower($ssoUser->getEmail())],
                 [
@@ -65,5 +72,23 @@ class SSOController extends Controller
     {
         return preg_match('/^[0-9]+[a-z]?$/', $username);
     }
-}
 
+    private function parseFromName($fullName, $part)
+    {
+        if (empty($fullName)) {
+            return null;
+        }
+
+        $nameParts = explode(' ', trim($fullName));
+
+        if ($part === 'forenames') {
+            // Everything except the last part
+            return count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 0, -1)) : $fullName;
+        } elseif ($part === 'surname') {
+            // The last part
+            return count($nameParts) > 1 ? end($nameParts) : null;
+        }
+
+        return null;
+    }
+}
