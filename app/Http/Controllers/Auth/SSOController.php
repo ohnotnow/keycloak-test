@@ -47,17 +47,26 @@ class SSOController extends Controller
                 abort(403, 'Students are not allowed to login');
             }
 
-            $email = strtolower($ssoUser->getEmail());
+            $ssoDetails = [
+                'email' => strtolower($ssoUser->email),
+                'username' => strtolower($ssoUser->nickname),
+                'surname' => $ssoUser->user['family_name'],
+                'forenames' => $ssoUser->user['given_name'],
+                'is_staff' => $this->isStaff($ssoUser),
+            ];
+
+            dump($ssoDetails);
+
 
             if (config('sso.autocreate_new_users', false)) {
                 $user = User::updateOrCreate(
-                    ['email' => $email],
+                    ['email' => $ssoDetails['email']],
                     [
                         'password' => bcrypt(Str::random(64)),
-                        'username' => strtolower($ssoUser->getNickname() ?? $ssoUser->getName()),
-                        'email' => $email,
-                        'surname' => $ssoUser->user['family_name'],
-                        'forenames' => $ssoUser->user['given_name'],
+                        'username' => $ssoDetails['username'],
+                        'email' => $ssoDetails['email'],
+                        'surname' => $ssoDetails['surname'],
+                        'forenames' => $ssoDetails['forenames'],
                         'is_staff' => $this->isStaff($ssoUser),
                     ]
                 );
