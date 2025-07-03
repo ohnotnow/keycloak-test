@@ -19,12 +19,7 @@ class SSOController extends Controller
         try {
             $ssoUser = Socialite::driver('keycloak')->user();
 
-            info('SSO User Data', [
-                'user' => $ssoUser->user,
-                'name' => $ssoUser->getName(),
-                'email' => $ssoUser->getEmail(),
-                'nickname' => $ssoUser->getNickname(),
-            ]);
+            dump($ssoUser);
 
             $user = User::updateOrCreate(
                 ['email' => strtolower($ssoUser->getEmail())],
@@ -39,7 +34,7 @@ class SSOController extends Controller
             );
 
             auth()->login($user, true);
-
+            return "Hello";
             return redirect('/home');
 
         } catch (\Exception $e) {
