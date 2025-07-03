@@ -40,23 +40,22 @@ class SSOController extends Controller
 
     public function handleProviderCallback()
     {
-            $ssoUser = Socialite::driver('keycloak')->user();
+        $ssoUser = Socialite::driver('keycloak')->user();
 
-            if (!config('sso.allow_students', true) && $this->isStudent($ssoUser)) {
-                abort(403, 'Students are not allowed to login');
-            }
+        if (!config('sso.allow_students', true) && $this->isStudent($ssoUser)) {
+            abort(403, 'Students are not allowed to login');
+        }
 
-            $ssoDetails = $this->getSSODetails($ssoUser);
+        $ssoDetails = $this->getSSODetails($ssoUser);
 
-            $user = $this->getUser($ssoDetails);
+        $user = $this->getUser($ssoDetails);
 
-            if (config('sso.admins_only', false) && !$user->is_admin) {
-                abort(403, 'Only admins can login');
-            }
+        if (config('sso.admins_only', false) && !$user->is_admin) {
+            abort(403, 'Only admins can login');
+        }
 
-            Auth::login($user, true);
-            return redirect('/home');
-
+        Auth::login($user, true);
+        return redirect('/home');
     }
 
     private function getSSODetails(\Laravel\Socialite\Contracts\User $ssoUser): array

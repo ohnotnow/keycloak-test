@@ -5,6 +5,7 @@ This is just a repo to demo using our SSO via Keycloak.
 The main files to look at are :
 
 * `app/Http/Controllers/Auth/SSOController.php`
+* `app/Providers/AppServiceProvider.php`
 * `routes/web.php`
 * `config/sso.php`
 * `config/services.php` (the 'keyclock' section)
