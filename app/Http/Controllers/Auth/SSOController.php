@@ -56,9 +56,9 @@ class SSOController extends Controller
                     [
                         'password' => bcrypt(Str::random(64)),
                         'username' => strtolower($ssoUser->getNickname() ?? $ssoUser->getName()),
-                        'email' => strtolower($ssoUser->getEmail()),
-                        'surname' => $this->extractSurname($ssoUser),
-                        'forenames' => $this->extractForenames($ssoUser),
+                        'email' => $email,
+                        'surname' => $ssoUser->user['family_name'],
+                        'forenames' => $ssoUser->user['given_name'],
                         'is_staff' => $this->isStaff($ssoUser),
                     ]
                 );
