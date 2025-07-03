@@ -7,6 +7,7 @@ use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Auth;
 
 class SSOController extends Controller
 {
@@ -41,7 +42,7 @@ class SSOController extends Controller
     {
             $ssoUser = Socialite::driver('keycloak')->user();
 
-            dump($ssoUser);
+            // dump($ssoUser);
 
             if (!config('sso.allow_students', true) && $this->isStudent($ssoUser)) {
                 abort(403, 'Students are not allowed to login');
@@ -55,7 +56,7 @@ class SSOController extends Controller
                 'is_staff' => $this->isStaff($ssoUser),
             ];
 
-            dump($ssoDetails);
+            // dump($ssoDetails);
 
 
             if (config('sso.autocreate_new_users', false)) {
@@ -71,7 +72,7 @@ class SSOController extends Controller
                     ]
                 );
             } else {
-                $user = User::where('email', '=', $email)->firstOrFail();
+                $user = User::where('email', '=', $ssoDetails['email'])->firstOrFail();
             }
 
             if (config('sso.admins_only', false) && !$user->is_admin) {
@@ -81,7 +82,7 @@ class SSOController extends Controller
                 abort(403, 'Only admins can login');
             }
 
-            auth()->login($user, true);
+            Auth::login($user, true);
             return redirect('/home');
 
     }
