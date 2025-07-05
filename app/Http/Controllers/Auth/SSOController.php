@@ -15,7 +15,9 @@ class SSOController extends Controller
     public function login()
     {
         if (config('sso.enabled', true)) {
-            return Socialite::driver('keycloak')->with(['OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL' => true])->redirect();
+            return Socialite::driver('keycloak')
+                ->with(['OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL' => true])
+                ->redirect();
         }
 
         return view('auth.login');
