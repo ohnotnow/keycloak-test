@@ -6,8 +6,9 @@ use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\RedirectResponse;
+use Laravel\Socialite\Facades\Socialite;
 
 class SSOController extends Controller
 {
@@ -20,6 +21,9 @@ class SSOController extends Controller
         return view('auth.login');
     }
 
+    /**
+     * This is the fallback for local dev without needing to faff with SSO
+     */
     public function doLocalLogin(Request $request)
     {
         if (config('sso.enabled', true)) {
@@ -32,59 +36,85 @@ class SSOController extends Controller
         ]);
 
         if (auth()->attempt($request->only('username', 'password'))) {
-            return redirect()->intended('/home');
+            return $this->getSuccessRedirect();
         }
 
         return redirect()->back()->withErrors(['username' => 'Invalid credentials']);
     }
 
-    public function handleProviderCallback()
+    /**
+     * This is the SSO callback
+     */
+    public function handleProviderCallback(): RedirectResponse
     {
         $ssoUser = Socialite::driver('keycloak')->user();
 
-        if (!config('sso.allow_students', true) && $this->isStudent($ssoUser)) {
+        if ($this->forbidsStudentsFromLoggingIn($ssoUser)) {
             abort(403, 'Students are not allowed to login');
         }
 
         $ssoDetails = $this->getSSODetails($ssoUser);
 
-        $user = $this->getUser($ssoDetails);
+        $user = User::where('email', $ssoDetails['email'])->first();
 
-        if (config('sso.admins_only', false) && !$user->is_admin) {
+        if ($this->onlyAdminsCanLogin($user)) {
             abort(403, 'Only admins can login');
         }
 
+        if (!$user && $this->shouldCreateNewUsers()) {
+            $user = $this->createUser($ssoDetails);
+        }
+
+        if (!$user) {
+            abort(403, 'Authentication failed');
+        }
+
         Auth::login($user, true);
-        return redirect('/home');
+
+        return $this->getSuccessRedirect();
+    }
+
+    private function getSuccessRedirect(): RedirectResponse
+    {
+        return redirect()->intended(route('home'));
+    }
+
+    private function forbidsStudentsFromLoggingIn(\Laravel\Socialite\Contracts\User $ssoUser): bool
+    {
+        return $this->isStudent($ssoUser) && !config('sso.allow_students', true);
+    }
+
+    private function onlyAdminsCanLogin(?User $user): bool
+    {
+        return config('sso.admins_only', false) && (!$user || !$user->is_admin);
+    }
+
+    private function shouldCreateNewUsers(): bool
+    {
+        return config('sso.autocreate_new_users', false);
     }
 
     private function getSSODetails(\Laravel\Socialite\Contracts\User $ssoUser): array
     {
         return [
-            'email' => strtolower($ssoUser->email),
-            'username' => strtolower($ssoUser->nickname),
-            'surname' => $ssoUser->user['family_name'],
-            'forenames' => $ssoUser->user['given_name'],
+            'email' => strtolower(trim($ssoUser->email)),
+            'username' => strtolower(trim($ssoUser->nickname)),
+            'surname' => trim($ssoUser->user['family_name']),
+            'forenames' => trim($ssoUser->user['given_name']),
             'is_staff' => $this->isStaff($ssoUser),
         ];
     }
 
-    private function getUser(array $ssoDetails): User
+    private function createUser(array $ssoDetails): User
     {
-        if (config('sso.autocreate_new_users', false)) {
-            return User::updateOrCreate(
-                ['email' => $ssoDetails['email']],
-                [
-                    'password' => bcrypt(Str::random(64)),
-                    'username' => $ssoDetails['username'],
-                    'email' => $ssoDetails['email'],
-                    'surname' => $ssoDetails['surname'],
-                    'forenames' => $ssoDetails['forenames'],
-                    'is_staff' => $ssoDetails['is_staff'],
-                ]
-            );
-        }
-        return User::where('email', '=', $ssoDetails['email'])->firstOrFail();
+        return User::create([
+            'password' => bcrypt(Str::random(64)),
+            'username' => $ssoDetails['username'],
+            'email' => $ssoDetails['email'],
+            'surname' => $ssoDetails['surname'],
+            'forenames' => $ssoDetails['forenames'],
+            'is_staff' => $ssoDetails['is_staff'],
+        ]);
     }
 
     private function isStudent(\Laravel\Socialite\Contracts\User $ssoUser): bool
@@ -99,6 +129,7 @@ class SSOController extends Controller
 
     private function looksLikeMatric(string $username): bool
     {
-        return preg_match('/^[0-9]+[a-z]?$/', $username) === 1;
+        // Matric numbers are 7 digits (for now), followed by a letter
+        return preg_match('/^[0-9]{7}[a-z]?$/', strtolower(trim($username))) === 1;
     }
 }
